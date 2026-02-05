@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -9,17 +8,14 @@ import {
   TrendingUp, 
   TrendingDown, 
   Wallet, 
-  AlertTriangle,
   Loader2,
   CalendarClock,
   ArrowUpRight,
   ArrowDownLeft,
-  MoreHorizontal,
   PiggyBank,
-  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { startOfMonth, endOfMonth, format, isSameDay } from 'date-fns';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { NewTransactionDialog } from '@/components/transactions/NewTransactionDialog';
 import { CategoryIcon } from '@/components/icons/CategoryIcon';
@@ -69,7 +65,6 @@ const Dashboard = () => {
   // 1. Totais do Mês
   const salary = Number(data?.profile?.monthly_income || 0);
   
-  // CORREÇÃO 1: Usar Math.abs para garantir que expensesMade seja positivo
   const expensesMade = data?.transactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
@@ -80,30 +75,38 @@ const Dashboard = () => {
     
   const totalRecurring = data?.recurring?.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0) || 0;
   
-  // Saldo Previsto (Renda + Extras - Gastos - Contas Fixas)
-  // Como expensesMade agora é positivo, subtraímos normalmente
+  // Saldo Previsto
   const predictedBalance = (salary + incomesMade) - expensesMade - totalRecurring;
   const balanceHealth = predictedBalance >= 0 ? 'healthy' : 'danger';
 
-  // 2. Cálculo de Orçamentos (Gastos vs Limites)
+  // 2. Cálculo de Orçamentos (CORRIGIDO: Transações + Recorrentes)
   const budgetStatus = data?.budgets?.map(budget => {
-    // CORREÇÃO 2: Usar Math.abs aqui para o cálculo da barra de progresso
-    const spentInCategory = data.transactions
+    
+    // A. Soma das Transações Variáveis nesta categoria
+    const variableSpent = data.transactions
       .filter(t => t.category_id === budget.category_id && t.type === 'expense')
       .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+
+    // B. Soma das Contas Recorrentes nesta categoria
+    const fixedSpent = data.recurring
+      .filter(r => r.category_id === budget.category_id)
+      .reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0);
+
+    // Total Real
+    const totalSpentInCategory = variableSpent + fixedSpent;
     
     const limit = Number(budget.limit_amount);
-    const percentage = limit > 0 ? (spentInCategory / limit) * 100 : 0;
+    const percentage = limit > 0 ? (totalSpentInCategory / limit) * 100 : 0;
     
     return {
       ...budget,
-      spent: spentInCategory,
+      spent: totalSpentInCategory, // Agora inclui fixas
       percentage,
       status: percentage > 100 ? 'exceeded' : percentage > 80 ? 'warning' : 'ok'
     };
-  }).sort((a, b) => b.percentage - a.percentage); // Ordena pelos mais críticos
+  }).sort((a, b) => b.percentage - a.percentage);
 
-  // 3. Últimas Transações (Top 5)
+  // 3. Últimas Transações
   const recentTransactions = data?.transactions?.slice(0, 5) || [];
 
   return (
@@ -157,10 +160,11 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-black text-foreground">
-                {formatCurrency(expensesMade)}
+                {/* Aqui mostra o totalzão: Variáveis + Fixas */}
+                {formatCurrency(expensesMade + totalRecurring)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Gastos Variáveis do Mês
+                Variáveis ({formatCurrency(expensesMade)}) + Fixas ({formatCurrency(totalRecurring)})
               </p>
             </CardContent>
           </Card>
@@ -196,7 +200,7 @@ const Dashboard = () => {
           {/* COLUNA ESQUERDA (2/3): ORÇAMENTOS E TRANSAÇÕES */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* SEÇÃO: MEUS ORÇAMENTOS (O PEDIDO PRINCIPAL) */}
+            {/* SEÇÃO: MEUS ORÇAMENTOS */}
             <Card className="border-border/50 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -204,7 +208,7 @@ const Dashboard = () => {
                     <PiggyBank className="h-5 w-5 text-primary" />
                     Controle de Orçamento
                   </CardTitle>
-                  <CardDescription>Acompanhe seus limites definidos no Setup.</CardDescription>
+                  <CardDescription>Inclui gastos lançados e contas fixas mensais.</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -352,13 +356,21 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                    {data?.categories
-                      ?.map(cat => ({
-                         ...cat,
-                         total: data.transactions
+                      ?.map(cat => {
+                        // CORREÇÃO 3: Soma Transações + Recorrentes para o gráfico de Top Gastos também
+                        const variableSpent = data.transactions
                             .filter(t => t.category_id === cat.id && t.type === 'expense')
-                            // CORREÇÃO 3: Usar Math.abs aqui também para o gráfico lateral
-                            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0)
-                      }))
+                            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+                        
+                        const fixedSpent = data.recurring
+                            .filter(r => r.category_id === cat.id)
+                            .reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0);
+
+                        return {
+                            ...cat,
+                            total: variableSpent + fixedSpent
+                        };
+                      })
                       .filter(c => c.total > 0)
                       .sort((a, b) => b.total - a.total)
                       .slice(0, 4)
@@ -371,12 +383,13 @@ const Dashboard = () => {
                             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                                <div 
                                   className="h-full rounded-full" 
-                                  style={{ width: `${(cat.total / expensesMade) * 100}%`, backgroundColor: cat.color }} 
+                                  // Nota: O denominador aqui é (expensesMade + totalRecurring) para ser justo com o total real
+                                  style={{ width: `${(cat.total / (expensesMade + totalRecurring)) * 100}%`, backgroundColor: cat.color }} 
                                />
                             </div>
                          </div>
                       ))}
-                      {expensesMade === 0 && <p className="text-xs text-muted-foreground">Sem dados ainda.</p>}
+                      {(expensesMade + totalRecurring) === 0 && <p className="text-xs text-muted-foreground">Sem dados ainda.</p>}
                 </CardContent>
              </Card>
 
