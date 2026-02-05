@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -13,7 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   PiggyBank,
-  AlertCircle
+  AlertCircle,
+  Plus // Importado para o botão flutuante
 } from 'lucide-react';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -60,7 +62,7 @@ const Dashboard = () => {
     </div>
   );
 
-  // --- CÁLCULOS PRINCIPAIS ---
+  // --- CÁLCULOS PRINCIPAIS (Com correções de valores negativos) ---
   
   // 1. Totais do Mês
   const salary = Number(data?.profile?.monthly_income || 0);
@@ -75,32 +77,30 @@ const Dashboard = () => {
     
   const totalRecurring = data?.recurring?.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0) || 0;
   
-  // Saldo Previsto
+  // Saldo Previsto (Salário + Extras - Gastos Variáveis - Gastos Fixos)
   const predictedBalance = (salary + incomesMade) - expensesMade - totalRecurring;
   const balanceHealth = predictedBalance >= 0 ? 'healthy' : 'danger';
 
-  // 2. Cálculo de Orçamentos (CORRIGIDO: Transações + Recorrentes)
+  // 2. Cálculo de Orçamentos (Soma Variável + Fixa na categoria)
   const budgetStatus = data?.budgets?.map(budget => {
     
-    // A. Soma das Transações Variáveis nesta categoria
+    // A. Soma Transações
     const variableSpent = data.transactions
       .filter(t => t.category_id === budget.category_id && t.type === 'expense')
       .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-    // B. Soma das Contas Recorrentes nesta categoria
+    // B. Soma Recorrentes
     const fixedSpent = data.recurring
       .filter(r => r.category_id === budget.category_id)
       .reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0);
 
-    // Total Real
     const totalSpentInCategory = variableSpent + fixedSpent;
-    
     const limit = Number(budget.limit_amount);
     const percentage = limit > 0 ? (totalSpentInCategory / limit) * 100 : 0;
     
     return {
       ...budget,
-      spent: totalSpentInCategory, // Agora inclui fixas
+      spent: totalSpentInCategory,
       percentage,
       status: percentage > 100 ? 'exceeded' : percentage > 80 ? 'warning' : 'ok'
     };
@@ -111,7 +111,7 @@ const Dashboard = () => {
 
   return (
 
-      <div className="p-4 md:p-8 max-w-[1600px] mx-auto pb-24 space-y-8 animate-fade-in">
+      <div className="p-4 md:p-8 max-w-[1600px] mx-auto pb-24 space-y-8 animate-fade-in relative">
         
         {/* --- HEADER --- */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -125,10 +125,9 @@ const Dashboard = () => {
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
-             <div className="hidden md:block">
-                <NewTransactionDialog categories={data?.categories || []} />
-             </div>
+          {/* Botão Desktop (Opcional, se quiser manter) */}
+          <div className="hidden md:block">
+             <NewTransactionDialog categories={data?.categories || []} />
           </div>
         </header>
 
@@ -160,7 +159,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-black text-foreground">
-                {/* Aqui mostra o totalzão: Variáveis + Fixas */}
+                {/* Total consolidado: Variáveis + Fixas */}
                 {formatCurrency(expensesMade + totalRecurring)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -357,7 +356,7 @@ const Dashboard = () => {
                 <CardContent className="space-y-4">
                    {data?.categories
                       ?.map(cat => {
-                        // CORREÇÃO 3: Soma Transações + Recorrentes para o gráfico de Top Gastos também
+                        // Soma Transações + Recorrentes para o gráfico lateral também
                         const variableSpent = data.transactions
                             .filter(t => t.category_id === cat.id && t.type === 'expense')
                             .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
@@ -383,7 +382,7 @@ const Dashboard = () => {
                             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                                <div 
                                   className="h-full rounded-full" 
-                                  // Nota: O denominador aqui é (expensesMade + totalRecurring) para ser justo com o total real
+                                  // Denominador ajustado para ser o total real
                                   style={{ width: `${(cat.total / (expensesMade + totalRecurring)) * 100}%`, backgroundColor: cat.color }} 
                                />
                             </div>
@@ -396,9 +395,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Botão FAB - Mobile */}
-        <div className="md:hidden fixed bottom-20 right-4 z-40">
-           <NewTransactionDialog categories={data?.categories || []} />
+        {/* --- BOTÃO FLUTUANTE (FAB) --- */}
+        <div className="fixed bottom-8 right-6 z-50">
+           {/* Usa o componente Novo que aceita filhos */}
+           <NewTransactionDialog categories={data?.categories || []}>
+              <Button 
+                size="icon" 
+                className="h-16 w-16 rounded-full shadow-2xl bg-primary hover:bg-primary/90 transition-all hover:scale-110 flex items-center justify-center"
+              >
+                <Plus className="h-8 w-8 text-white" />
+              </Button>
+           </NewTransactionDialog>
         </div>
 
       </div>

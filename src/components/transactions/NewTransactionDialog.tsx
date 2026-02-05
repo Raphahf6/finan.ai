@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -16,15 +16,12 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Plus, Loader2, CalendarIcon, Repeat } from 'lucide-react'; // Adicionei Repeat
+import { Plus, Loader2, CalendarIcon, Repeat } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-
-// Se você não tiver esse componente de Popover de data, pode usar um input type="date" simples
-// Mas vou manter estrutura padrão. Se usar input date, troque a logica visual.
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -35,18 +32,18 @@ interface Category {
 
 interface NewTransactionDialogProps {
   categories: Category[];
+  children?: React.ReactNode; // <--- NOVO: Permite passar um botão personalizado
 }
 
-export function NewTransactionDialog({ categories }: NewTransactionDialogProps) {
+export function NewTransactionDialog({ categories, children }: NewTransactionDialogProps) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<'expense' | 'income' | 'recurring'>('expense'); // Novo tipo 'recurring'
+  const [type, setType] = useState<'expense' | 'income' | 'recurring'>('expense');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   
-  // Estados de Data
-  const [date, setDate] = useState<Date | undefined>(new Date()); // Para Transações
-  const [dueDay, setDueDay] = useState('5'); // Para Contas Mensais
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [dueDay, setDueDay] = useState('5');
 
   const queryClient = useQueryClient();
 
@@ -58,23 +55,18 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
       const numericAmount = parseFloat(amount.replace(',', '.'));
       if (isNaN(numericAmount)) throw new Error("Valor inválido");
 
-      // LÓGICA CONDICIONAL: Salva na tabela certa baseada no TIPO
       if (type === 'recurring') {
-        // --- SALVAR NA TABELA DE CONTAS FIXAS ---
         const { error } = await supabase.from('recurring_bills').insert({
           user_id: user.id,
           description,
-          amount: numericAmount, // Salva positivo, o banco/front trata depois
+          amount: numericAmount,
           due_day: parseInt(dueDay),
           category_id: categoryId || null,
-          type: 'expense' // Assumimos que conta fixa é despesa
+          type: 'expense'
         });
         if (error) throw error;
-
       } else {
-        // --- SALVAR NA TABELA DE TRANSAÇÕES (Despesa ou Receita) ---
         const finalAmount = type === 'expense' ? -Math.abs(numericAmount) : Math.abs(numericAmount);
-        
         const { error } = await supabase.from('transactions').insert({
           user_id: user.id,
           description,
@@ -87,9 +79,7 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
       }
     },
     onSuccess: () => {
-      // Atualiza tudo
       queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
-      
       toast.success(type === 'recurring' ? 'Conta mensal agendada!' : 'Transação salva!');
       setOpen(false);
       resetForm();
@@ -112,9 +102,12 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="font-bold gap-2 shadow-lg hover:scale-105 transition-transform">
-          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nova Transação</span>
-        </Button>
+        {/* LÓGICA: Se passar um filho (botão redondo), usa ele. Se não, usa o padrão retangular. */}
+        {children ? children : (
+          <Button className="font-bold gap-2 shadow-lg hover:scale-105 transition-transform">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nova Transação</span>
+          </Button>
+        )}
       </DialogTrigger>
       
       <DialogContent className="sm:max-w-[425px]">
@@ -123,8 +116,7 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
         </DialogHeader>
         
         <div className="space-y-4 py-2">
-          
-          {/* SELETOR DE TIPO (3 OPÇÕES AGORA) */}
+          {/* SELETOR DE TIPO */}
           <div className="grid grid-cols-3 gap-2 p-1 bg-muted rounded-lg">
             <button
               onClick={() => setType('expense')}
@@ -162,8 +154,6 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
           </div>
 
           <div className="grid gap-4">
-            
-            {/* VALOR */}
             <div className="grid gap-2">
               <Label htmlFor="amount">Valor (R$)</Label>
               <Input
@@ -176,18 +166,16 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
               />
             </div>
 
-            {/* DESCRIÇÃO */}
             <div className="grid gap-2">
               <Label htmlFor="desc">Descrição</Label>
               <Input
                 id="desc"
-                placeholder={type === 'recurring' ? "Ex: Aluguel, Internet..." : "Ex: Supermercado..."}
+                placeholder={type === 'recurring' ? "Ex: Aluguel..." : "Ex: Mercado..."}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
 
-            {/* CONDICIONAL: DATA (Despesa/Receita) OU DIA VENCIMENTO (Fixa) */}
             {type === 'recurring' ? (
               <div className="grid gap-2">
                 <Label>Dia do Vencimento</Label>
@@ -230,7 +218,6 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
               </div>
             )}
 
-            {/* CATEGORIA */}
             <div className="grid gap-2">
               <Label>Categoria</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
@@ -246,7 +233,6 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
                 </SelectContent>
               </Select>
             </div>
-
           </div>
         </div>
 
@@ -263,7 +249,6 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
           {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 
            type === 'recurring' ? 'Agendar Conta Mensal' : 'Salvar Transação'}
         </Button>
-
       </DialogContent>
     </Dialog>
   );
