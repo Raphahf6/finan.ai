@@ -1,122 +1,138 @@
-import { useState } from 'react';
-import { Plus, CalendarIcon, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+import { useState, useEffect } from 'react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
 } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
-import { Category } from '@/types/finance';
-import { CategoryIcon } from '@/components/icons/CategoryIcon';
-import { toast } from 'sonner';
+import { Plus, Loader2, CalendarIcon, Repeat } from 'lucide-react'; // Adicionei Repeat
 import { supabase } from '@/lib/supabase';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+
+// Se você não tiver esse componente de Popover de data, pode usar um input type="date" simples
+// Mas vou manter estrutura padrão. Se usar input date, troque a logica visual.
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 interface NewTransactionDialogProps {
   categories: Category[];
 }
 
 export function NewTransactionDialog({ categories }: NewTransactionDialogProps) {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [type, setType] = useState<'expense' | 'income' | 'recurring'>('expense'); // Novo tipo 'recurring'
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState<Date>(new Date());
   const [categoryId, setCategoryId] = useState('');
-  const [status, setStatus] = useState<'paid' | 'pending'>('paid');
+  
+  // Estados de Data
+  const [date, setDate] = useState<Date | undefined>(new Date()); // Para Transações
+  const [dueDay, setDueDay] = useState('5'); // Para Contas Mensais
 
-  const filteredCategories = categories.filter((c) => c.type === type);
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      
-      if (!user) {
-        toast.error("Sessão expirada. Faça login novamente.");
-        throw new Error("Usuário não autenticado");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const numericAmount = parseFloat(amount.replace(',', '.'));
+      if (isNaN(numericAmount)) throw new Error("Valor inválido");
+
+      // LÓGICA CONDICIONAL: Salva na tabela certa baseada no TIPO
+      if (type === 'recurring') {
+        // --- SALVAR NA TABELA DE CONTAS FIXAS ---
+        const { error } = await supabase.from('recurring_bills').insert({
+          user_id: user.id,
+          description,
+          amount: numericAmount, // Salva positivo, o banco/front trata depois
+          due_day: parseInt(dueDay),
+          category_id: categoryId || null,
+          type: 'expense' // Assumimos que conta fixa é despesa
+        });
+        if (error) throw error;
+
+      } else {
+        // --- SALVAR NA TABELA DE TRANSAÇÕES (Despesa ou Receita) ---
+        const finalAmount = type === 'expense' ? -Math.abs(numericAmount) : Math.abs(numericAmount);
+        
+        const { error } = await supabase.from('transactions').insert({
+          user_id: user.id,
+          description,
+          amount: finalAmount,
+          category_id: categoryId || null,
+          date: date ? date.toISOString() : new Date().toISOString(),
+          type: type
+        });
+        if (error) throw error;
       }
-
-      const { error } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        amount: parseFloat(amount),
-        description: description,
-        date: format(date, 'yyyy-MM-dd'),
-        type: type,
-        category_id: categoryId || null,
-        status: status,
-      });
-
-      if (error) throw error;
     },
     onSuccess: () => {
+      // Atualiza tudo
       queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
-      queryClient.invalidateQueries({ queryKey: ['extrato-data'] });
-      toast.success('Transação adicionada com sucesso!');
+      
+      toast.success(type === 'recurring' ? 'Conta mensal agendada!' : 'Transação salva!');
       setOpen(false);
       resetForm();
     },
-    onError: (error: any) => {
-      console.error(error);
-      toast.error('Erro ao salvar a transação.');
+    onError: (err) => {
+      console.error(err);
+      toast.error('Erro ao salvar.');
     }
   });
-
-  const handleSubmit = () => {
-    if (!amount || !description || !categoryId) {
-      toast.error('Preencha todos os campos obrigatórios');
-      return;
-    }
-    mutation.mutate();
-  };
 
   const resetForm = () => {
     setAmount('');
     setDescription('');
-    setDate(new Date());
     setCategoryId('');
-    setStatus('paid');
+    setDate(new Date());
+    setDueDay('5');
+    setType('expense');
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="fab">
-          <Plus className="h-6 w-6" />
-        </button>
+        <Button className="font-bold gap-2 shadow-lg hover:scale-105 transition-transform">
+          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nova Transação</span>
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-xl font-bold">Nova Transação</DialogTitle>
+      
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Adicionar Movimentação</DialogTitle>
         </DialogHeader>
         
-        <div className="p-6 pt-0 space-y-5">
-          {/* Seletor de Tipo com alto contraste */}
-          <div className="flex rounded-xl bg-muted p-1 gap-1">
+        <div className="space-y-4 py-2">
+          
+          {/* SELETOR DE TIPO (3 OPÇÕES AGORA) */}
+          <div className="grid grid-cols-3 gap-2 p-1 bg-muted rounded-lg">
             <button
               onClick={() => setType('expense')}
               className={cn(
-                'flex-1 rounded-lg py-2.5 text-sm font-bold transition-all',
-                type === 'expense'
-                  ? 'bg-red-500 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                "py-1.5 text-sm font-bold rounded-md transition-all",
+                type === 'expense' 
+                  ? "bg-background text-red-500 shadow-sm border border-red-100" 
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               Despesa
@@ -124,110 +140,130 @@ export function NewTransactionDialog({ categories }: NewTransactionDialogProps) 
             <button
               onClick={() => setType('income')}
               className={cn(
-                'flex-1 rounded-lg py-2.5 text-sm font-bold transition-all',
-                type === 'income'
-                  ? 'bg-emerald-500 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                "py-1.5 text-sm font-bold rounded-md transition-all",
+                type === 'income' 
+                  ? "bg-background text-emerald-500 shadow-sm border border-emerald-100" 
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               Receita
             </button>
+            <button
+              onClick={() => setType('recurring')}
+              className={cn(
+                "py-1.5 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-1",
+                type === 'recurring' 
+                  ? "bg-background text-blue-500 shadow-sm border border-blue-100" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Repeat className="h-3 w-3" /> Fixa
+            </button>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-sm font-semibold">Valor (R$)</Label>
-            <Input
-              id="amount"
-              type="number"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="text-2xl font-bold h-12 focus-visible:ring-primary border-muted-foreground/20"
-            />
-          </div>
+          <div className="grid gap-4">
+            
+            {/* VALOR */}
+            <div className="grid gap-2">
+              <Label htmlFor="amount">Valor (R$)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="text-lg font-bold"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-semibold">Descrição</Label>
-            <Input
-              id="description"
-              placeholder="Ex: Supermercado, Salário..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="h-11 border-muted-foreground/20"
-            />
-          </div>
+            {/* DESCRIÇÃO */}
+            <div className="grid gap-2">
+              <Label htmlFor="desc">Descrição</Label>
+              <Input
+                id="desc"
+                placeholder={type === 'recurring' ? "Ex: Aluguel, Internet..." : "Ex: Supermercado..."}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Data</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal h-11 border-muted-foreground/20"
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={(d) => d && setDate(d)}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Categoria</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger className="h-11 border-muted-foreground/20">
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCategories.map((category) => (
-                  <SelectItem key={category.id} value={category.id} className="cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <CategoryIcon icon={category.icon} color={category.color} size={16} />
-                      <span className="font-medium text-foreground">{category.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">Status</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as 'paid' | 'pending')}>
-              <SelectTrigger className="h-11 border-muted-foreground/20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="paid" className="text-foreground font-medium">Pago</SelectItem>
-                <SelectItem value="pending" className="text-foreground font-medium">Pendente</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button
-            onClick={handleSubmit}
-            disabled={mutation.isPending}
-            className={cn(
-              'w-full h-12 text-base font-bold transition-all active:scale-[0.98]',
-              type === 'income' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
-            )}
-          >
-            {mutation.isPending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+            {/* CONDICIONAL: DATA (Despesa/Receita) OU DIA VENCIMENTO (Fixa) */}
+            {type === 'recurring' ? (
+              <div className="grid gap-2">
+                <Label>Dia do Vencimento</Label>
+                <Select value={dueDay} onValueChange={setDueDay}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {Array.from({ length: 31 }, (_, i) => (
+                      <SelectItem key={i + 1} value={(i + 1).toString()}>Dia {i + 1}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : (
-              'Salvar Transação'
+              <div className="grid gap-2">
+                <Label>Data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "dd 'de' MMMM 'de' yyyy") : <span>Selecione a data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             )}
-          </Button>
+
+            {/* CATEGORIA */}
+            <div className="grid gap-2">
+              <Label>Categoria</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+          </div>
         </div>
+
+        <Button 
+          className={cn(
+            "w-full font-bold mt-2",
+            type === 'expense' ? "bg-red-600 hover:bg-red-700" :
+            type === 'income' ? "bg-emerald-600 hover:bg-emerald-700" :
+            "bg-blue-600 hover:bg-blue-700"
+          )} 
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending || !amount || !description}
+        >
+          {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 
+           type === 'recurring' ? 'Agendar Conta Mensal' : 'Salvar Transação'}
+        </Button>
+
       </DialogContent>
     </Dialog>
   );
