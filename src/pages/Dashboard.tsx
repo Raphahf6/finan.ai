@@ -68,26 +68,32 @@ const Dashboard = () => {
   
   // 1. Totais do Mês
   const salary = Number(data?.profile?.monthly_income || 0);
+  
+  // CORREÇÃO 1: Usar Math.abs para garantir que expensesMade seja positivo
   const expensesMade = data?.transactions
     .filter(t => t.type === 'expense')
-    .reduce((acc, t) => acc + Number(t.amount), 0) || 0;
+    .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
+
   const incomesMade = data?.transactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + Number(t.amount), 0) || 0;
-  const totalRecurring = data?.recurring?.reduce((acc, r) => acc + Number(r.amount), 0) || 0;
+    
+  const totalRecurring = data?.recurring?.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0) || 0;
   
   // Saldo Previsto (Renda + Extras - Gastos - Contas Fixas)
+  // Como expensesMade agora é positivo, subtraímos normalmente
   const predictedBalance = (salary + incomesMade) - expensesMade - totalRecurring;
-  const balanceHealth = predictedBalance > 0 ? 'healthy' : 'danger';
+  const balanceHealth = predictedBalance >= 0 ? 'healthy' : 'danger';
 
   // 2. Cálculo de Orçamentos (Gastos vs Limites)
   const budgetStatus = data?.budgets?.map(budget => {
+    // CORREÇÃO 2: Usar Math.abs aqui para o cálculo da barra de progresso
     const spentInCategory = data.transactions
       .filter(t => t.category_id === budget.category_id && t.type === 'expense')
-      .reduce((acc, t) => acc + Number(t.amount), 0);
+      .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
     
     const limit = Number(budget.limit_amount);
-    const percentage = (spentInCategory / limit) * 100;
+    const percentage = limit > 0 ? (spentInCategory / limit) * 100 : 0;
     
     return {
       ...budget,
@@ -283,7 +289,7 @@ const Dashboard = () => {
                               "font-bold tabular-nums text-sm",
                               t.type === 'expense' ? "text-foreground" : "text-emerald-600"
                            )}>
-                              {t.type === 'expense' ? '-' : '+'} {formatCurrency(Number(t.amount))}
+                              {t.type === 'expense' ? '-' : '+'} {formatCurrency(Math.abs(Number(t.amount)))}
                            </span>
                         </div>
                      ))}
@@ -313,7 +319,6 @@ const Dashboard = () => {
                       <p className="text-sm text-muted-foreground italic">Nenhuma conta mensal.</p>
                    ) : (
                       data?.recurring?.sort((a, b) => a.due_day - b.due_day).map((bill) => {
-                         // Lógica simples para ver se já passou o dia
                          const today = new Date().getDate();
                          const isLate = today > bill.due_day;
                          
@@ -351,7 +356,8 @@ const Dashboard = () => {
                          ...cat,
                          total: data.transactions
                             .filter(t => t.category_id === cat.id && t.type === 'expense')
-                            .reduce((acc, t) => acc + Number(t.amount), 0)
+                            // CORREÇÃO 3: Usar Math.abs aqui também para o gráfico lateral
+                            .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0)
                       }))
                       .filter(c => c.total > 0)
                       .sort((a, b) => b.total - a.total)
