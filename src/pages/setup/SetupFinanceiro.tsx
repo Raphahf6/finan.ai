@@ -22,9 +22,8 @@ import {
   PieChart, 
   Save,
   Pencil,
-  AlertCircle,
-  CheckCircle2,
-  Settings2
+  Settings2,
+  CheckCircle2
 } from 'lucide-react';
 import { CategoryIcon } from '@/components/icons/CategoryIcon';
 import { NewRecurringBillDialog } from './NewRecurringBillDialog';
@@ -33,12 +32,12 @@ import { cn } from '@/lib/utils';
 const SetupFinanceiro = () => {
   const queryClient = useQueryClient();
   const [income, setIncome] = useState<string>('');
-  const [salaryDay, setSalaryDay] = useState<number>(5);
+  const [salaryDay, setSalaryDay] = useState<string>('5');
   const [tempBudgets, setTempBudgets] = useState<Record<string, number>>({});
   
   const isInitialLoad = useRef(true);
 
-  // --- DATA FETCHING (Apenas dados essenciais) ---
+  // --- DATA FETCHING (Sem Metas) ---
   const { data, isLoading } = useQuery({
     queryKey: ['setup-data'],
     queryFn: async () => {
@@ -56,7 +55,7 @@ const SetupFinanceiro = () => {
         profile: profileRes.data, 
         categories: categoriesRes.data, 
         recurring: recurringRes.data, 
-        existingBudgets: budgetsRes.data 
+        existingBudgets: budgetsRes.data
       };
     },
   });
@@ -66,7 +65,7 @@ const SetupFinanceiro = () => {
     if (data && isInitialLoad.current) {
       if (data.profile) {
         setIncome(data.profile.monthly_income?.toString() || '');
-        setSalaryDay(data.profile.salary_date || 5);
+        setSalaryDay(data.profile.salary_date?.toString() || '5');
       }
       if (data.existingBudgets && data.existingBudgets.length > 0) {
         const initial: Record<string, number> = {};
@@ -82,7 +81,9 @@ const SetupFinanceiro = () => {
   // IA Otimizadora
   useEffect(() => {
     const incomeNum = parseFloat(income);
-    if (!isNaN(incomeNum) && incomeNum > 0 && Object.keys(tempBudgets).length === 0) {
+    const hasBudgets = Object.keys(tempBudgets).length > 0;
+    
+    if (!isNaN(incomeNum) && incomeNum > 0 && !hasBudgets && !isInitialLoad.current) {
       const sugerido: Record<string, number> = {};
       data?.categories?.forEach((cat: any) => {
         if (['Alimentação', 'Moradia', 'Transporte'].some(k => cat.name.includes(k))) {
@@ -94,8 +95,9 @@ const SetupFinanceiro = () => {
         }
       });
       setTempBudgets(sugerido);
+      toast.info("Sugestão de orçamento gerada com base na sua renda!", { duration: 2000 });
     }
-  }, [income, data?.categories]);
+  }, [income]);
 
   // --- MUTATIONS ---
   const saveAllMutation = useMutation({
@@ -104,10 +106,11 @@ const SetupFinanceiro = () => {
       if (!user) throw new Error("Usuário não autenticado");
       
       const incomeValue = parseFloat(income) || 0;
+      const salaryDateValue = parseInt(salaryDay);
 
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ monthly_income: incomeValue, salary_date: salaryDay })
+        .update({ monthly_income: incomeValue, salary_date: salaryDateValue })
         .eq('id', user.id);
       if (profileError) throw profileError;
 
@@ -125,7 +128,7 @@ const SetupFinanceiro = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['setup-data'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
-      toast.success("Planejamento salvo com sucesso!");
+      toast.success("Configurações salvas com sucesso!");
     },
     onError: () => toast.error("Erro ao salvar configuração.")
   });
@@ -144,8 +147,6 @@ const SetupFinanceiro = () => {
   const incomeNum = parseFloat(income) || 0;
   const totalPlanejado = Object.values(tempBudgets).reduce((a, b) => a + b, 0);
   const totalRecorrente = data?.recurring?.reduce((a: number, b: any) => a + Number(b.amount), 0) || 0;
-  
-  // Livre teórico (Renda - Planejado)
   const livreParaInvestir = incomeNum - totalPlanejado;
   const percentualComprometido = incomeNum > 0 ? (totalPlanejado / incomeNum) * 100 : 0;
   
@@ -156,10 +157,8 @@ const SetupFinanceiro = () => {
   }
 
   return (
-   
-      <div className="p-4 md:p-8 max-w-[1400px] mx-auto pb-32 animate-fade-in">
-        
-        {/* --- HEADER --- */}
+    <div className="p-4 md:p-8 max-w-[1400px] mx-auto pb-32 animate-fade-in">
+        {/* HEADER */}
         <header className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -170,18 +169,18 @@ const SetupFinanceiro = () => {
                  <span className="text-sm font-bold text-primary tracking-wider uppercase">Painel de Controle</span>
               </div>
               <h1 className="text-3xl font-black text-foreground tracking-tight">Setup Financeiro</h1>
-              <p className="text-muted-foreground mt-1">Defina as regras do seu dinheiro aqui.</p>
+              <p className="text-muted-foreground mt-1">Configure suas regras fundamentais.</p>
             </div>
 
             {/* CARD DE RESUMO FLUTUANTE */}
             <div className="hidden md:flex items-center gap-6 bg-card border border-border p-4 rounded-2xl shadow-sm">
                 <div className="text-right">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Renda</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase">Renda Base</p>
                     <p className="text-lg font-bold text-foreground">{formatMoney(incomeNum)}</p>
                 </div>
                 <div className="h-8 w-[1px] bg-border" />
                 <div className="text-right">
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Fixo</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase">Fixo Mensal</p>
                     <p className="text-lg font-bold text-orange-500">{formatMoney(totalRecorrente)}</p>
                 </div>
                 <div className="h-8 w-[1px] bg-border" />
@@ -197,10 +196,10 @@ const SetupFinanceiro = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-            {/* --- COLUNA ESQUERDA: RENDA E FIXOS --- */}
+            {/* COLUNA ESQUERDA: FUNDAÇÕES */}
             <div className="lg:col-span-4 space-y-6">
                 
-                {/* 1. RENDA */}
+                {/* 1. RENDA & DATA */}
                 <Card className="border-primary/20 bg-primary/5 shadow-none overflow-hidden relative">
                     <div className="absolute top-0 right-0 p-3 opacity-10">
                         <Wallet className="h-24 w-24 text-primary" />
@@ -210,7 +209,7 @@ const SetupFinanceiro = () => {
                              <Wallet className="h-5 w-5 text-primary" /> 
                              Fonte de Renda
                         </CardTitle>
-                        <CardDescription>O início de tudo.</CardDescription>
+                        <CardDescription>O combustível do seu sistema.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
@@ -228,23 +227,25 @@ const SetupFinanceiro = () => {
                         </div>
                         <div className="space-y-2">
                             <Label className="text-xs font-bold uppercase text-muted-foreground">Dia do Pagamento</Label>
-                            <Select value={salaryDay.toString()} onValueChange={(v) => setSalaryDay(parseInt(v))}>
+                            
+                            <Select value={salaryDay} onValueChange={setSalaryDay}>
                                 <SelectTrigger className="h-12 bg-background border-input font-medium">
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                                        <SelectValue />
+                                        <SelectValue placeholder="Selecione o dia" />
                                     </div>
                                 </SelectTrigger>
-                                <SelectContent>
-                                    {[1, 5, 10, 15, 20, 25, 30].map((d) => (
-                                        <SelectItem key={d} value={d.toString()}>Dia {d}</SelectItem>
-                                    ))}
-                                    <Separator className="my-1"/>
-                                    {Array.from({ length: 31 }, (_, i) => (
-                                        <SelectItem key={i + 1} value={(i + 1).toString()}>Dia {i + 1}</SelectItem>
+                                <SelectContent className="max-h-[200px]">
+                                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                                        <SelectItem key={day} value={day.toString()}>
+                                            Dia {day}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <p className="text-[10px] text-muted-foreground">
+                                O sistema lançará seu salário automaticamente neste dia.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
@@ -256,7 +257,7 @@ const SetupFinanceiro = () => {
                             <CardTitle className="text-base flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-orange-500" /> Contas Fixas
                             </CardTitle>
-                            <CardDescription className="text-xs">Obrigações mensais</CardDescription>
+                            <CardDescription className="text-xs">Aluguel, Internet, Assinaturas...</CardDescription>
                         </div>
                         <NewRecurringBillDialog />
                     </CardHeader>
@@ -290,118 +291,103 @@ const SetupFinanceiro = () => {
                                 ))}
                             </div>
                         )}
-                        {data?.recurring?.length > 0 && (
-                            <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm">
-                                <span className="font-medium text-muted-foreground">Total Fixo:</span>
-                                <span className="font-bold text-foreground">{formatMoney(totalRecorrente)}</span>
-                            </div>
-                        )}
                     </CardContent>
                 </Card>
-
             </div>
 
-            {/* --- COLUNA DIREITA: ORÇAMENTOS (Budgets) --- */}
-            <div className="lg:col-span-8 space-y-6">
+            {/* COLUNA DIREITA: ORÇAMENTOS APENAS */}
+            <div className="lg:col-span-8 space-y-8">
                 
-                <Card className="border-none shadow-none bg-transparent p-0">
-                    <div className="flex justify-between items-end mb-2">
-                        <div className="flex items-center gap-2">
-                            <PieChart className="h-5 w-5 text-primary" />
-                            <h2 className="text-lg font-bold text-foreground">Limites de Gastos (Mensal)</h2>
-                        </div>
-                        <span className={cn(
-                            "text-sm font-bold px-3 py-1 rounded-full",
-                            percentualComprometido > 100 ? "bg-expense/10 text-expense" : "bg-primary/10 text-primary"
-                        )}>
-                            {percentualComprometido.toFixed(1)}% da Renda Comprometida
-                        </span>
-                    </div>
-                    <div className="h-4 w-full bg-muted rounded-full overflow-hidden shadow-inner">
-                        <div 
-                            className={cn("h-full transition-all duration-700 ease-out", percentualComprometido > 100 ? "bg-expense" : "bg-primary")}
-                            style={{ width: `${Math.min(percentualComprometido, 100)}%` }}
-                        />
-                    </div>
-                    {percentualComprometido > 100 && (
-                        <p className="text-xs text-expense mt-2 flex items-center gap-1 font-medium animate-pulse">
-                            <AlertCircle className="h-3 w-3" /> Atenção: Você planejou gastar mais do que ganha!
-                        </p>
-                    )}
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {data?.categories?.map((cat: any) => {
-                        const amount = tempBudgets[cat.id] || 0;
-                        const percentOfIncome = incomeNum > 0 ? (amount / incomeNum) * 100 : 0;
-                        
-                        return (
-                            <div 
-                                key={cat.id} 
-                                className="group relative bg-card border border-border p-4 rounded-2xl hover:shadow-md hover:border-primary/30 transition-all duration-300"
-                            >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 rounded-xl bg-muted/50 group-hover:bg-primary/10 transition-colors">
-                                            <CategoryIcon icon={cat.icon} color={cat.color} size={20} />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-foreground text-sm">{cat.name}</p>
-                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                                                {percentOfIncome.toFixed(1)}% da Renda
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {amount > 0 && (
-                                        <div className="bg-primary/5 text-primary px-2 py-1 rounded-lg">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="relative">
-                                    <label className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</label>
-                                    <Input 
-                                        type="number"
-                                        value={amount || ''}
-                                        placeholder="0"
-                                        onChange={(e) => setTempBudgets({ ...tempBudgets, [cat.id]: parseFloat(e.target.value) || 0 })}
-                                        className="pl-8 h-10 font-bold bg-muted/20 border-transparent focus-visible:bg-background focus-visible:border-primary"
-                                    />
-                                    <Pencil className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                </div>
+                {/* 3. ORÇAMENTOS */}
+                <div className="space-y-4">
+                    <Card className="border-none shadow-none bg-transparent p-0">
+                        <div className="flex justify-between items-end mb-2">
+                            <div className="flex items-center gap-2">
+                                <PieChart className="h-5 w-5 text-primary" />
+                                <h2 className="text-lg font-bold text-foreground">Limites de Gastos (Mensal)</h2>
                             </div>
-                        )
-                    })}
+                            <span className={cn(
+                                "text-sm font-bold px-3 py-1 rounded-full",
+                                percentualComprometido > 100 ? "bg-expense/10 text-expense" : "bg-primary/10 text-primary"
+                            )}>
+                                {percentualComprometido.toFixed(1)}% Comprometido
+                            </span>
+                        </div>
+                        <div className="h-4 w-full bg-muted rounded-full overflow-hidden shadow-inner">
+                            <div 
+                                className={cn("h-full transition-all duration-700 ease-out", percentualComprometido > 100 ? "bg-expense" : "bg-primary")}
+                                style={{ width: `${Math.min(percentualComprometido, 100)}%` }}
+                            />
+                        </div>
+                    </Card>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {data?.categories?.map((cat: any) => {
+                            const amount = tempBudgets[cat.id] || 0;
+                            const percentOfIncome = incomeNum > 0 ? (amount / incomeNum) * 100 : 0;
+                            
+                            return (
+                                <div key={cat.id} className="group relative bg-card border border-border p-4 rounded-2xl hover:shadow-md hover:border-primary/30 transition-all duration-300">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-xl bg-muted/50 group-hover:bg-primary/10 transition-colors">
+                                                <CategoryIcon icon={cat.icon} color={cat.color} size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-foreground text-sm">{cat.name}</p>
+                                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                                                    {percentOfIncome.toFixed(1)}% da Renda
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {amount > 0 && (
+                                            <div className="bg-primary/5 text-primary px-2 py-1 rounded-lg">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <label className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</label>
+                                        <Input 
+                                            type="number"
+                                            value={amount || ''}
+                                            placeholder="0"
+                                            onChange={(e) => setTempBudgets({ ...tempBudgets, [cat.id]: parseFloat(e.target.value) || 0 })}
+                                            className="pl-8 h-10 font-bold bg-muted/20 border-transparent focus-visible:bg-background focus-visible:border-primary"
+                                        />
+                                        <Pencil className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
                 </div>
+
             </div>
-
         </div>
 
-        {/* --- FAB SAVE BUTTON --- */}
-        <div className="fixed bottom-20 md:bottom-10 right-6 z-50 animate-in slide-in-from-bottom-10 fade-in duration-500">
-            <Button 
-                onClick={() => saveAllMutation.mutate()} 
-                disabled={saveAllMutation.isPending}
-                size="lg"
-                className={cn(
-                    "h-14 px-6 rounded-full shadow-2xl transition-all duration-300 gap-2 text-sm font-black bg-primary hover:bg-primary/90 hover:scale-105",
-                    saveAllMutation.isPending && "w-14 px-0"
-                )}
-            >
-                {saveAllMutation.isPending ? (
-                    <Loader2 className="animate-spin h-5 w-5" />
-                ) : (
-                    <>
-                        <Save className="h-5 w-5" />
-                        SALVAR SETUP
-                    </>
-                )}
-            </Button>
-        </div>
-
+      {/* FAB SAVE BUTTON */}
+      <div className="fixed bottom-24 md:bottom-12 right-6 z-50 animate-in slide-in-from-bottom-10 fade-in duration-500">
+          <Button 
+              onClick={() => saveAllMutation.mutate()} 
+              disabled={saveAllMutation.isPending}
+              size="lg"
+              className={cn(
+                  "h-14 px-6 rounded-full shadow-2xl transition-all duration-300 gap-2 text-sm font-black bg-primary hover:bg-primary/90 hover:scale-105",
+                  saveAllMutation.isPending && "w-14 px-0"
+              )}
+          >
+              {saveAllMutation.isPending ? (
+                  <Loader2 className="animate-spin h-5 w-5" />
+              ) : (
+                  <>
+                      <Save className="h-5 w-5" />
+                      SALVAR SETUP
+                  </>
+              )}
+          </Button>
       </div>
-   
+    </div>
   );
 };
 
