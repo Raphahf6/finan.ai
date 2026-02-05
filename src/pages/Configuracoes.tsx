@@ -12,11 +12,12 @@ import {
   X,
   Upload,
   LogOut,
-  Send, // Ícone para o Telegram
+  Send,
   Copy,
-  Loader2
+  Loader2,
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,11 +28,12 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // --- COMPONENTES REUTILIZÁVEIS ---
 
@@ -125,12 +127,15 @@ function IntegrationCard({ icon: Icon, title, description, status, color, onClic
 // --- PÁGINA PRINCIPAL ---
 
 const Configuracoes = () => {
+  const queryClient = useQueryClient();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Estados para o Modal do Telegram
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
+  const [isDisconnectOpen, setIsDisconnectOpen] = useState(false); // Novo estado
   const [telegramToken, setTelegramToken] = useState<string | null>(null);
   const [loadingToken, setLoadingToken] = useState(false);
+  const [loadingDisconnect, setLoadingDisconnect] = useState(false);
 
   // Busca usuário
   const { data: user } = useQuery({
@@ -156,13 +161,17 @@ const Configuracoes = () => {
     else toast.success("Você saiu com sucesso!");
   };
 
-  // Lógica para Gerar Token do Bot
-  const handleConnectTelegram = async () => {
-    if (integrationStatus === 'connected') {
-        toast.info("Você já está conectado! Para desconectar, bloqueie o bot no Telegram.");
-        return;
-    }
+  // --- LÓGICA DE CONEXÃO E DESCONEXÃO ---
 
+  const handleIntegrationClick = () => {
+    if (integrationStatus === 'connected') {
+      setIsDisconnectOpen(true); // Abre modal de desconectar
+    } else {
+      handleConnectTelegram(); // Inicia fluxo de conexão
+    }
+  };
+
+  const handleConnectTelegram = async () => {
     setIsTelegramOpen(true);
     setLoadingToken(true);
     
@@ -170,10 +179,10 @@ const Configuracoes = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
 
-        // 1. Gera um token aleatório único
-        const token = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
+        // 1. Gera token
+        const token = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        // 2. Salva no banco (ou atualiza se já existir registro)
+        // 2. Salva no banco
         const { error } = await supabase.from('user_integrations').upsert({
             user_id: user.id,
             connection_token: token,
@@ -191,6 +200,34 @@ const Configuracoes = () => {
     }
   };
 
+  const handleDisconnectTelegram = async () => {
+    setLoadingDisconnect(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Limpa os campos do Telegram mantendo o registro
+      const { error } = await supabase.from('user_integrations')
+        .update({ 
+          telegram_chat_id: null, 
+          telegram_username: null,
+          connection_token: null 
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast.success("Telegram desconectado com sucesso.");
+      queryClient.invalidateQueries({ queryKey: ['telegram-status'] }); // Atualiza UI
+      setIsDisconnectOpen(false);
+    } catch (err) {
+      toast.error("Erro ao desconectar.");
+      console.error(err);
+    } finally {
+      setLoadingDisconnect(false);
+    }
+  };
+
   const copyToken = () => {
     if(telegramToken) {
         navigator.clipboard.writeText(`/start ${telegramToken}`);
@@ -198,9 +235,11 @@ const Configuracoes = () => {
     }
   };
 
+  // URL Deep Link
+  const telegramBotUrl = `https://t.me/PlanejadorFinanceiro_bot?start=${telegramToken}`;
+
   return (
-   
-      <div className="p-4 md:p-8 max-w-3xl mx-auto pb-20">
+    <div className="p-4 md:p-8 max-w-3xl mx-auto pb-20 animate-fade-in">
         <header className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
             Configurações
@@ -211,7 +250,7 @@ const Configuracoes = () => {
         </header>
 
         {/* Premium Banner */}
-        <div className="rounded-2xl gradient-premium p-6 mb-6 animate-fade-in">
+        <div className="rounded-2xl gradient-premium p-6 mb-6">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-foreground/20">
               <Sparkles className="h-6 w-6 text-primary-foreground" />
@@ -291,14 +330,14 @@ const Configuracoes = () => {
           </h2>
           <div className="space-y-3">
             
-            {/* CARD DO TELEGRAM (AGORA FUNCIONAL) */}
+            {/* CARD DO TELEGRAM (Controlado pelo handleIntegrationClick) */}
             <IntegrationCard
               icon={Send}
               title="Bot Telegram (Tanque de Guerra)"
               description="Registre gastos e consulte saldo direto pelo chat."
               status={integrationStatus || 'disconnected'}
               color="#229ED9"
-              onClick={handleConnectTelegram}
+              onClick={handleIntegrationClick}
             />
 
             <IntegrationCard
@@ -339,41 +378,57 @@ const Configuracoes = () => {
                         Conectar Telegram
                     </DialogTitle>
                     <DialogDescription>
-                        Siga os passos abaixo para ativar seu assistente financeiro.
+                        Integre o bot para lançar gastos rápidos.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-6 py-4">
                     {loadingToken ? (
-                        <div className="flex justify-center py-8">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        <div className="flex flex-col items-center justify-center py-8 gap-4">
+                            <Loader2 className="w-10 h-10 animate-spin text-[#229ED9]" />
+                            <p className="text-sm text-muted-foreground">Gerando link seguro...</p>
                         </div>
                     ) : (
                         <>
-                            <div className="space-y-2">
-                                <p className="text-sm font-medium">1. Copie o comando abaixo:</p>
-                                <div 
-                                    className="flex items-center justify-between p-3 bg-muted rounded-lg border cursor-pointer hover:bg-muted/80 transition-colors"
-                                    onClick={copyToken}
+                            <div className="space-y-3 text-center">
+                                <div className="p-4 bg-[#229ED9]/10 rounded-full w-16 h-16 mx-auto flex items-center justify-center mb-2">
+                                    <Send className="w-8 h-8 text-[#229ED9]" />
+                                </div>
+                                <h3 className="font-bold text-lg">Clique para Conectar</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    O botão abaixo abrirá o Telegram já configurado. Basta clicar em <b>"Começar"</b> (ou "Start").
+                                </p>
+                                <Button 
+                                    className="w-full bg-[#229ED9] hover:bg-[#229ED9]/90 h-12 text-base font-bold shadow-lg shadow-[#229ED9]/20" 
+                                    onClick={() => window.open(telegramBotUrl, '_blank')}
                                 >
-                                    <code className="text-primary font-mono font-bold text-lg">
-                                        /start {telegramToken}
-                                    </code>
-                                    <Copy className="w-4 h-4 text-muted-foreground" />
+                                    Abrir Bot Automaticamente
+                                    <ExternalLink className="ml-2 w-4 h-4" />
+                                </Button>
+                            </div>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-background px-2 text-muted-foreground">
+                                        Ou faça manualmente
+                                    </span>
                                 </div>
                             </div>
-                            
-                            <div className="space-y-2">
-                                <p className="text-sm font-medium">2. Abra o bot e cole o comando:</p>
-                                <Button 
-                                    className="w-full bg-[#229ED9] hover:bg-[#229ED9]/90" 
-                                    onClick={() => window.open('https://t.me/SEU_BOT_USER_NAME', '_blank')}
+
+                            <div className="space-y-2 bg-muted/30 p-4 rounded-xl border border-border/50">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Se o botão não funcionar, envie para @PlanejadorFinanceiro_bot:</p>
+                                <div 
+                                    className="flex items-center justify-between p-3 bg-background rounded-lg border cursor-pointer hover:border-primary/50 transition-colors group"
+                                    onClick={copyToken}
                                 >
-                                    Abrir Telegram
-                                </Button>
-                                <p className="text-xs text-muted-foreground text-center pt-2">
-                                    Após enviar o comando, a conexão será confirmada automaticamente.
-                                </p>
+                                    <code className="text-primary font-mono font-bold">
+                                        /start {telegramToken}
+                                    </code>
+                                    <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                </div>
                             </div>
                         </>
                     )}
@@ -381,8 +436,34 @@ const Configuracoes = () => {
             </DialogContent>
         </Dialog>
 
-      </div>
-   
+        {/* DIALOG DE DESCONEXÃO (NOVO) */}
+        <Dialog open={isDisconnectOpen} onOpenChange={setIsDisconnectOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-red-500">
+                        <Trash2 className="w-5 h-5" />
+                        Desconectar Telegram
+                    </DialogTitle>
+                    <DialogDescription>
+                        Tem certeza? Você perderá a capacidade de lançar gastos pelo bot até conectar novamente.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex gap-2 sm:justify-end mt-4">
+                    <Button variant="ghost" onClick={() => setIsDisconnectOpen(false)}>
+                        Cancelar
+                    </Button>
+                    <Button 
+                        variant="destructive" 
+                        onClick={handleDisconnectTelegram} 
+                        disabled={loadingDisconnect}
+                    >
+                        {loadingDisconnect ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sim, desconectar"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+    </div>
   );
 };
 
