@@ -1,0 +1,299 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Finan.AI - Premium Dark Finance Design System */
+
+
+
+@layer base {
+  :root {
+    /* Light mode (não é o foco, mas mantemos) */
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 160 84% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 160 84% 39%;
+
+    --radius: 0.75rem;
+
+    /* Cores específicas do Finan.AI */
+    --income: 160 84% 39%;
+    --income-foreground: 0 0% 100%;
+    --expense: 0 72% 51%;
+    --expense-foreground: 0 0% 100%;
+    --pending: 43 96% 56%;
+    --pending-foreground: 0 0% 0%;
+
+    /* Sidebar */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 160 84% 39%;
+
+    /* Chart colors */
+    --chart-1: 160 84% 39%;
+    --chart-2: 0 72% 51%;
+    --chart-3: 217 91% 60%;
+    --chart-4: 280 68% 60%;
+    --chart-5: 43 96% 56%;
+    --chart-6: 189 94% 43%;
+  }
+
+  .dark {
+    /* Background principal - Slate profundo */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    /* Cards com leve transparência */
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary - Esmeralda vibrante */
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Slate mais claro */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* Muted - Para textos menos importantes */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    /* Accent - Para hover e estados */
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 98%;
+
+    /* Destructive - Vermelho suave */
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 20%;
+    --ring: 160 84% 39%;
+
+    /* Cores de transações */
+    --income: 160 84% 45%;
+    --income-foreground: 0 0% 100%;
+    --expense: 0 65% 55%;
+    --expense-foreground: 0 0% 100%;
+    --pending: 43 96% 56%;
+    --pending-foreground: 0 0% 0%;
+
+    /* Sidebar dark */
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 13%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 12%;
+    --sidebar-ring: 160 84% 39%;
+
+    /* Chart colors */
+    --chart-1: 160 84% 45%;
+    --chart-2: 0 65% 55%;
+    --chart-3: 217 91% 60%;
+    --chart-4: 280 68% 60%;
+    --chart-5: 43 96% 56%;
+    --chart-6: 189 94% 43%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  /* Glass effect for cards */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-xl;
+  }
+
+  /* Gradient backgrounds */
+  .gradient-income {
+    background: linear-gradient(135deg, hsl(var(--income)) 0%, hsl(var(--chart-6)) 100%);
+  }
+
+  .gradient-expense {
+    background: linear-gradient(135deg, hsl(var(--expense)) 0%, hsl(var(--chart-5)) 100%);
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(189 94% 43%) 100%);
+  }
+
+  .gradient-premium {
+    background: linear-gradient(135deg, hsl(280 68% 60%) 0%, hsl(var(--primary)) 50%, hsl(189 94% 43%) 100%);
+  }
+
+  /* Shimmer effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--accent)) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  /* Pulse glow effect */
+  .glow-income {
+    box-shadow: 0 0 20px -5px hsl(var(--income) / 0.4);
+  }
+
+  .glow-expense {
+    box-shadow: 0 0 20px -5px hsl(var(--expense) / 0.4);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px -5px hsl(var(--primary) / 0.4);
+  }
+
+  /* Stat card hover effect */
+  .stat-card {
+    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl;
+  }
+
+  /* FAB button styles */
+  .fab {
+    @apply fixed bottom-24 right-4 z-50 h-14 w-14 rounded-full shadow-2xl md:bottom-8;
+    @apply bg-primary text-primary-foreground;
+    @apply flex items-center justify-center;
+    @apply transition-all duration-300 hover:scale-110;
+    box-shadow: 0 8px 32px -8px hsl(var(--primary) / 0.5);
+  }
+
+  /* Transaction item */
+  .transaction-item {
+    @apply flex items-center gap-4 p-4 rounded-xl bg-card/50 border border-border/30;
+    @apply transition-all duration-200 hover:bg-accent/50;
+  }
+
+  /* Category icon container */
+  .category-icon {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl;
+  }
+
+  /* Progress bar container */
+  .progress-container {
+    @apply relative h-3 w-full overflow-hidden rounded-full bg-muted;
+  }
+
+  .progress-bar {
+    @apply absolute left-0 top-0 h-full rounded-full transition-all duration-500;
+  }
+
+  /* Bottom navigation for mobile */
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 z-50 flex h-20 items-center justify-around;
+    @apply bg-card/95 backdrop-blur-xl border-t border-border/50;
+    @apply px-4 pb-safe md:hidden;
+  }
+
+  .bottom-nav-item {
+    @apply flex flex-col items-center gap-1 px-4 py-2 rounded-xl;
+    @apply transition-all duration-200;
+  }
+
+  .bottom-nav-item.active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .bottom-nav-item:not(.active) {
+    @apply text-muted-foreground hover:text-foreground;
+  }
+
+  /* Scrollbar styling */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer utilities {
+  /* Safe area padding for mobile */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(189 94% 43%) 100%);
+  }
+
+  .text-gradient-premium {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(280 68% 60%) 0%, hsl(var(--primary)) 50%, hsl(189 94% 43%) 100%);
+  }
+}
