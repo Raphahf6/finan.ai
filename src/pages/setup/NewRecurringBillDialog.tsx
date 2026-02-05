@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Loader2, CalendarDays } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react'; // Removi CalendarDays se não for usado
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'; // <--- ADICIONEI useQuery
 import { toast } from 'sonner';
 
 export function NewRecurringBillDialog() {
@@ -26,7 +26,22 @@ export function NewRecurringBillDialog() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDay, setDueDay] = useState('5');
+  const [categoryId, setCategoryId] = useState(''); // <--- NOVO ESTADO
+
   const queryClient = useQueryClient();
+
+  // 1. BUSCAR CATEGORIAS DO BANCO
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      // Busca categorias para popular o Select
+      const { data } = await supabase
+        .from('categories')
+        .select('id, name')
+        .order('name');
+      return data || [];
+    }
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -38,16 +53,21 @@ export function NewRecurringBillDialog() {
         description,
         amount: parseFloat(amount),
         due_day: parseInt(dueDay),
+        category_id: categoryId || null, // <--- AQUI: SALVA A CATEGORIA
         type: 'expense'
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['setup-data'] });
+      // Também invalida o dashboard se tiver query dele
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] }); 
+      
       toast.success('Conta recorrente adicionada!');
       setOpen(false);
       setDescription('');
       setAmount('');
+      setCategoryId(''); // Limpa a categoria
     },
     onError: () => toast.error('Erro ao adicionar conta')
   });
@@ -64,6 +84,8 @@ export function NewRecurringBillDialog() {
           <DialogTitle>Nova Conta Fixa</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          
+          {/* CAMPO DESCRIÇÃO */}
           <div className="space-y-2">
             <Label>Descrição</Label>
             <Input 
@@ -72,6 +94,8 @@ export function NewRecurringBillDialog() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+
+          {/* CAMPO VALOR */}
           <div className="space-y-2">
             <Label>Valor Mensal (R$)</Label>
             <Input 
@@ -81,6 +105,25 @@ export function NewRecurringBillDialog() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </div>
+
+          {/* NOVO CAMPO: CATEGORIA */}
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* CAMPO DIA VENCIMENTO */}
           <div className="space-y-2">
             <Label>Dia do Vencimento</Label>
             <Select value={dueDay} onValueChange={setDueDay}>
@@ -94,7 +137,13 @@ export function NewRecurringBillDialog() {
               </SelectContent>
             </Select>
           </div>
-          <Button className="w-full font-bold" onClick={() => mutation.mutate()} disabled={mutation.isPending || !amount || !description}>
+
+          <Button 
+            className="w-full font-bold" 
+            onClick={() => mutation.mutate()} 
+            // Botão desabilitado se não tiver Descrição, Valor ou Categoria (Opcional)
+            disabled={mutation.isPending || !amount || !description}
+          >
             {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar Conta'}
           </Button>
         </div>

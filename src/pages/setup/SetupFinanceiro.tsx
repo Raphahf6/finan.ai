@@ -255,7 +255,7 @@ const SetupFinanceiro = () => {
                     <CardHeader className="flex flex-row items-center justify-between pb-4">
                         <div className="space-y-1">
                             <CardTitle className="text-base flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-orange-500" /> Contas Fixas
+                                <Calendar className="h-4 w-4 text-orange-500" /> Contas Mensais
                             </CardTitle>
                             <CardDescription className="text-xs">Aluguel, Internet, Assinaturas...</CardDescription>
                         </div>

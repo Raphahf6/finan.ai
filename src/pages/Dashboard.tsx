@@ -310,7 +310,7 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                    {data?.recurring?.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic">Nenhuma conta fixa.</p>
+                      <p className="text-sm text-muted-foreground italic">Nenhuma conta mensal.</p>
                    ) : (
                       data?.recurring?.sort((a, b) => a.due_day - b.due_day).map((bill) => {
                          // Lógica simples para ver se já passou o dia
