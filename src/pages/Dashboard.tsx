@@ -15,7 +15,7 @@ import {
   ArrowDownLeft,
   PiggyBank,
   AlertCircle,
-  Plus // Importado para o botão flutuante
+  Plus 
 } from 'lucide-react';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -118,13 +118,12 @@ const Dashboard = () => {
             </p>
           </div>
           
-          {/* BOTÃO DESKTOP: Só aparece em telas médias ou maiores (hidden md:block) */}
           <div className="hidden md:block">
              <NewTransactionDialog categories={data?.categories || []} />
           </div>
         </header>
 
-        {/* --- CARDS DE RESUMO (KPIs) --- */}
+        {/* --- CARDS DE RESUMO --- */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-none shadow-sm bg-gradient-to-br from-emerald-500/10 to-transparent border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
@@ -222,7 +221,6 @@ const Dashboard = () => {
                            <span className="text-muted-foreground text-xs">/ {formatCurrency(Number(item.limit_amount))}</span>
                         </div>
                       </div>
-                      
                       <div className="relative h-3 w-full bg-muted rounded-full overflow-hidden">
                         <div 
                            className={cn(
@@ -233,12 +231,6 @@ const Dashboard = () => {
                            style={{ width: `${Math.min(item.percentage, 100)}%` }}
                         />
                       </div>
-                      
-                      {item.status === 'exceeded' && (
-                        <p className="text-[10px] font-bold text-red-500 flex items-center gap-1">
-                           <AlertCircle className="h-3 w-3" /> Limite estourado em {formatCurrency(item.spent - Number(item.limit_amount))}
-                        </p>
-                      )}
                     </div>
                   ))
                 )}
@@ -362,15 +354,14 @@ const Dashboard = () => {
                             </div>
                          </div>
                       ))}
-                      {(expensesMade + totalRecurring) === 0 && <p className="text-xs text-muted-foreground">Sem dados ainda.</p>}
                 </CardContent>
              </Card>
           </div>
         </div>
 
         {/* --- BOTÃO FLUTUANTE (FAB) --- */}
-        {/* Adicionei 'md:hidden' aqui. Assim ele SOME no Desktop e SÓ APARECE no Mobile */}
-        <div className="md:hidden fixed bottom-8 right-6 z-50">
+        {/* CORREÇÃO: mudei bottom-8 para bottom-24 (aprox 96px). Sobe acima do menu */}
+        <div className="md:hidden fixed bottom-24 right-6 z-50">
            <NewTransactionDialog categories={data?.categories || []}>
               <Button 
                 size="icon" 
