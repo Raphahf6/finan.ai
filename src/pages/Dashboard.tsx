@@ -62,9 +62,7 @@ const Dashboard = () => {
     </div>
   );
 
-  // --- CÁLCULOS PRINCIPAIS (Com correções de valores negativos) ---
-  
-  // 1. Totais do Mês
+  // --- CÁLCULOS PRINCIPAIS ---
   const salary = Number(data?.profile?.monthly_income || 0);
   
   const expensesMade = data?.transactions
@@ -77,19 +75,15 @@ const Dashboard = () => {
     
   const totalRecurring = data?.recurring?.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0) || 0;
   
-  // Saldo Previsto (Salário + Extras - Gastos Variáveis - Gastos Fixos)
   const predictedBalance = (salary + incomesMade) - expensesMade - totalRecurring;
   const balanceHealth = predictedBalance >= 0 ? 'healthy' : 'danger';
 
-  // 2. Cálculo de Orçamentos (Soma Variável + Fixa na categoria)
+  // Cálculo de Orçamentos
   const budgetStatus = data?.budgets?.map(budget => {
-    
-    // A. Soma Transações
     const variableSpent = data.transactions
       .filter(t => t.category_id === budget.category_id && t.type === 'expense')
       .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
 
-    // B. Soma Recorrentes
     const fixedSpent = data.recurring
       .filter(r => r.category_id === budget.category_id)
       .reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0);
@@ -106,7 +100,6 @@ const Dashboard = () => {
     };
   }).sort((a, b) => b.percentage - a.percentage);
 
-  // 3. Últimas Transações
   const recentTransactions = data?.transactions?.slice(0, 5) || [];
 
   return (
@@ -125,7 +118,7 @@ const Dashboard = () => {
             </p>
           </div>
           
-          {/* Botão Desktop (Opcional, se quiser manter) */}
+          {/* BOTÃO DESKTOP: Só aparece em telas médias ou maiores (hidden md:block) */}
           <div className="hidden md:block">
              <NewTransactionDialog categories={data?.categories || []} />
           </div>
@@ -133,7 +126,6 @@ const Dashboard = () => {
 
         {/* --- CARDS DE RESUMO (KPIs) --- */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Receitas */}
           <Card className="border-none shadow-sm bg-gradient-to-br from-emerald-500/10 to-transparent border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-black text-emerald-600 uppercase tracking-wider flex items-center gap-2">
@@ -150,7 +142,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Despesas */}
           <Card className="border-none shadow-sm bg-gradient-to-br from-red-500/10 to-transparent border-l-4 border-l-red-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-black text-red-600 uppercase tracking-wider flex items-center gap-2">
@@ -159,7 +150,6 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-black text-foreground">
-                {/* Total consolidado: Variáveis + Fixas */}
                 {formatCurrency(expensesMade + totalRecurring)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -168,7 +158,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Saldo Projetado */}
           <Card className={cn(
             "border-none shadow-md border-l-4 transition-colors",
             balanceHealth === 'healthy' 
@@ -196,10 +185,7 @@ const Dashboard = () => {
         {/* --- GRID PRINCIPAL --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* COLUNA ESQUERDA (2/3): ORÇAMENTOS E TRANSAÇÕES */}
           <div className="lg:col-span-2 space-y-8">
-            
-            {/* SEÇÃO: MEUS ORÇAMENTOS */}
             <Card className="border-border/50 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -259,7 +245,6 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* SEÇÃO: ÚLTIMAS TRANSAÇÕES */}
             <Card className="border-border/50 shadow-sm">
                <CardHeader className="flex flex-row items-center justify-between pb-4">
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -304,13 +289,9 @@ const Dashboard = () => {
                   </div>
                </CardContent>
             </Card>
-
           </div>
 
-          {/* COLUNA DIREITA (1/3): CONTAS FIXAS & INSIGHTS */}
           <div className="lg:col-span-1 space-y-8">
-             
-             {/* PRÓXIMAS CONTAS */}
              <Card className="bg-muted/30 border-none shadow-none">
                 <CardHeader>
                    <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -324,7 +305,6 @@ const Dashboard = () => {
                       data?.recurring?.sort((a, b) => a.due_day - b.due_day).map((bill) => {
                          const today = new Date().getDate();
                          const isLate = today > bill.due_day;
-                         
                          return (
                             <div key={bill.id} className="flex items-center justify-between p-3 bg-background rounded-xl border border-border shadow-sm">
                                <div className="flex items-center gap-3">
@@ -348,7 +328,6 @@ const Dashboard = () => {
                 </CardContent>
              </Card>
 
-             {/* RESUMO POR CATEGORIA (Mini-Gráfico) */}
              <Card>
                 <CardHeader>
                    <CardTitle className="text-sm font-bold">Top Gastos</CardTitle>
@@ -356,7 +335,6 @@ const Dashboard = () => {
                 <CardContent className="space-y-4">
                    {data?.categories
                       ?.map(cat => {
-                        // Soma Transações + Recorrentes para o gráfico lateral também
                         const variableSpent = data.transactions
                             .filter(t => t.category_id === cat.id && t.type === 'expense')
                             .reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
@@ -365,10 +343,7 @@ const Dashboard = () => {
                             .filter(r => r.category_id === cat.id)
                             .reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0);
 
-                        return {
-                            ...cat,
-                            total: variableSpent + fixedSpent
-                        };
+                        return { ...cat, total: variableSpent + fixedSpent };
                       })
                       .filter(c => c.total > 0)
                       .sort((a, b) => b.total - a.total)
@@ -382,7 +357,6 @@ const Dashboard = () => {
                             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                                <div 
                                   className="h-full rounded-full" 
-                                  // Denominador ajustado para ser o total real
                                   style={{ width: `${(cat.total / (expensesMade + totalRecurring)) * 100}%`, backgroundColor: cat.color }} 
                                />
                             </div>
@@ -391,13 +365,12 @@ const Dashboard = () => {
                       {(expensesMade + totalRecurring) === 0 && <p className="text-xs text-muted-foreground">Sem dados ainda.</p>}
                 </CardContent>
              </Card>
-
           </div>
         </div>
 
         {/* --- BOTÃO FLUTUANTE (FAB) --- */}
-        <div className="fixed bottom-8 right-6 z-50">
-           {/* Usa o componente Novo que aceita filhos */}
+        {/* Adicionei 'md:hidden' aqui. Assim ele SOME no Desktop e SÓ APARECE no Mobile */}
+        <div className="md:hidden fixed bottom-8 right-6 z-50">
            <NewTransactionDialog categories={data?.categories || []}>
               <Button 
                 size="icon" 
@@ -409,7 +382,6 @@ const Dashboard = () => {
         </div>
 
       </div>
-    
   );
 };
 
