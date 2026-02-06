@@ -149,7 +149,7 @@ export function NewTransactionDialog({ categories, children }: NewTransactionDia
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Repeat className="h-3 w-3" /> Fixa
+              <Repeat className="h-3 w-3" /> Conta Mensal
             </button>
           </div>
 
